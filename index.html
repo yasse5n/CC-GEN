@@ -1,60 +1,216 @@
 <!DOCTYPE html>
-<html lang="en">
-
+<html lang="ar" dir="ltr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <meta http-equiv="X-UA-Compatible" content="ie=edge">
-    <title> CC GEN | 𝕐𝕒𝕤𝕤𝕖𝕟 𝕻𝕾</title>
-    <meta name="description" content="Advanced Credit Card Generator Tool">
+    <title> CC GEN PRO | Yassen PS - BIN Lookup & Generator</title>
+    <meta name="description" content="Advanced Credit Card Generator with instant BIN details">
     <meta name="theme-color" content="#0a0a0f">
-
-    <!-- Fonts -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-
-    <!-- Custom Style -->
     <link rel="stylesheet" href="./style.css">
 </head>
-
 <body>
 
-    <div id="app">
-        <!-- Navigation -->
-        <nav class="navigations">
+<div id="app">
+    <nav class="navigations">
+        <div class="logo-container">
             <font>CC GEN | 𝕐𝕒𝕤𝕤𝕖𝕟 𝕻𝕾</font>
-        </nav>
+            <span class="badge-pro">PRO</span>
+        </div>
+    </nav>
 
-        <!-- Main Content -->
-        <div class="container">
-            <div class="row">
-                <!-- Generator Panel -->
-                <div class="col-md-6">
-                    <form-generator></form-generator>
-                </div>
-
-                <!-- Results Panel -->
-                <div class="col-md-6">
-                    <generated-credit-cards></generated-credit-cards>
-                </div>
+    <div class="container">
+        <div class="row">
+            <div class="col-md-6">
+                <form-generator></form-generator>
             </div>
+            <div class="col-md-6">
+                <generated-credit-cards></generated-credit-cards>
+            </div>
+        </div>
 
-            <!-- Hidden Fields for Tracking (Preserved from original) -->
-            <input type="hidden" name="IL_IN_ARTICLE">
-            <input type="hidden" name="IL_IN_TAG" value="2">
+        <!-- BIN Info Panel -->
+        <div class="bin-info-panel" id="binInfoPanel" style="display: none;">
+            <div class="bin-info-header">
+                <i class="fas fa-credit-card"></i>
+                <h3>BIN Details</h3>
+                <span class="bin-number" id="binNumberDisplay"></span>
+            </div>
+            <div class="bin-details-grid" id="binDetailsGrid">
+                <div class="skeleton-loader" style="grid-column: 1/-1;">🔍 Waiting for BIN input...</div>
+            </div>
+            <div class="loader-overlay" id="binLoader" style="display: none;">
+                <div class="spinner"></div>
+                <span>Fetching BIN data from Binlist API...</span>
+            </div>
         </div>
     </div>
+</div>
 
-    <!-- Footer -->
-    <footer>
-        <p>&copy; 2026 Yassen PS | All Rights Reserved</p>
-    </footer>
+<footer>
+    <p>© 2026 Yassen PS | All Rights Reserved | BIN Lookup v3.0</p>
+</footer>
 
-    <!-- Protection -->
-    <script src="./protection.js"></script>
+<script src="./protection.js"></script>
+<script src="./gen-backend.js"></script>
 
-    <!-- Scripts -->
-    <script language="javascript" src="./gen-backend.js"></script>
+<script>
+(function() {
+    // Advanced BIN Lookup System
+    let binInput = null;
+    let currentTimeout = null;
+    const panel = document.getElementById('binInfoPanel');
+    const loader = document.getElementById('binLoader');
+    const binNumberSpan = document.getElementById('binNumberDisplay');
+    const detailsGrid = document.getElementById('binDetailsGrid');
+
+    // Helper: format scheme with icon
+    function formatScheme(scheme) {
+        if (!scheme) return 'N/A';
+        const icons = {
+            visa: 'fab fa-cc-visa',
+            mastercard: 'fab fa-cc-mastercard',
+            amex: 'fab fa-cc-amex',
+            discover: 'fab fa-cc-discover',
+            jcb: 'fab fa-cc-jcb',
+            diners: 'fab fa-cc-diners-club'
+        };
+        const icon = icons[scheme.toLowerCase()] || 'fas fa-credit-card';
+        return `<i class="${icon}" style="margin-right: 8px;"></i> ${scheme.toUpperCase()}`;
+    }
+
+    // Render BIN data into grid
+    function renderBinData(data, binNumber) {
+        const bank = data.bank || {};
+        const country = data.country || {};
+        const scheme = data.scheme;
+        const cardType = data.type ? data.type.charAt(0).toUpperCase() + data.type.slice(1) : 'N/A';
+        const brand = data.brand || 'N/A';
+        const prepaid = data.prepaid ? 'Yes' : 'No';
+        const luhnValid = data.number?.luhn ? 'Valid' : 'Invalid';
+        
+        const items = [
+            { icon: 'fas fa-university', label: 'Bank Name', value: bank.name || 'Unknown' },
+            { icon: 'fas fa-phone', label: 'Bank Phone', value: bank.phone || 'N/A' },
+            { icon: 'fas fa-map-marker-alt', label: 'City', value: bank.city || 'N/A' },
+            { icon: 'fas fa-globe', label: 'Website', value: bank.url ? `<a href="https://${bank.url}" target="_blank" style="color:#00d2ff;">${bank.url}</a>` : 'N/A' },
+            { icon: 'fas fa-flag', label: 'Country', value: `${country.name || 'Unknown'} (${country.alpha2 || '??'}) ${country.emoji || ''}` },
+            { icon: 'fas fa-coins', label: 'Currency', value: country.currency || 'N/A' },
+            { icon: 'fas fa-tag', label: 'Scheme', value: formatScheme(scheme) },
+            { icon: 'fas fa-layer-group', label: 'Card Type', value: cardType },
+            { icon: 'fas fa-star', label: 'Brand', value: brand },
+            { icon: 'fas fa-chart-simple', label: 'Prepaid', value: prepaid === 'Yes' ? '<span class="badge-yes">✓ Yes</span>' : '<span class="badge-no">✗ No</span>' },
+            { icon: 'fas fa-check-circle', label: 'Luhn Algorithm', value: luhnValid === 'Valid' ? '<span class="badge-yes">Valid</span>' : '<span class="badge-no">Invalid</span>' }
+        ];
+        
+        detailsGrid.innerHTML = '';
+        items.forEach(item => {
+            const card = document.createElement('div');
+            card.className = 'bin-card';
+            card.innerHTML = `
+                <i class="${item.icon}"></i>
+                <div class="bin-card-content">
+                    <span class="label">${item.label}</span>
+                    <div class="value">${item.value}</div>
+                </div>
+            `;
+            detailsGrid.appendChild(card);
+        });
+    }
+
+    function showError(binNumber) {
+        detailsGrid.innerHTML = `<div class="error-message">⚠️ Could not retrieve BIN information for ${binNumber}. Possible reasons: invalid BIN, network issue, or API rate limit.</div>`;
+    }
+
+    async function lookupBIN(bin) {
+        if (!bin || bin.length < 6) {
+            panel.style.display = 'none';
+            return;
+        }
+        const first6 = bin.toString().substring(0,6).replace(/\D/g, '');
+        if (first6.length !== 6) {
+            panel.style.display = 'none';
+            return;
+        }
+        
+        binNumberSpan.innerText = first6;
+        panel.style.display = 'block';
+        loader.style.display = 'flex';
+        detailsGrid.innerHTML = '';
+        
+        try {
+            const response = await fetch(`https://lookup.binlist.net/${first6}`, {
+                headers: { 'Accept-Version': '3' }
+            });
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const data = await response.json();
+            renderBinData(data, first6);
+        } catch (err) {
+            console.warn('BIN lookup error:', err);
+            showError(first6);
+        } finally {
+            loader.style.display = 'none';
+            panel.classList.add('fade-in-up');
+            setTimeout(() => panel.classList.remove('fade-in-up'), 500);
+        }
+    }
+
+    // Robust method to find the BIN input field (created by Vue)
+    function findBinInput() {
+        return document.querySelector('#bin, input[name="bin"]');
+    }
+
+    function setupBinWatcher() {
+        const input = findBinInput();
+        if (input) {
+            if (binInput === input) return;
+            binInput = input;
+            // Remove old listeners to avoid duplicates
+            binInput.removeEventListener('input', handleInput);
+            binInput.removeEventListener('blur', handleBlur);
+            binInput.addEventListener('input', handleInput);
+            binInput.addEventListener('blur', handleBlur);
+            // Trigger initial check
+            const initialVal = binInput.value.replace(/\D/g, '').substring(0,6);
+            if (initialVal.length === 6) lookupBIN(initialVal);
+            return true;
+        }
+        return false;
+    }
+
+    function handleInput(e) {
+        const val = e.target.value.replace(/\D/g, '').substring(0,6);
+        if (currentTimeout) clearTimeout(currentTimeout);
+        if (val.length === 6) {
+            currentTimeout = setTimeout(() => lookupBIN(val), 500);
+        } else {
+            panel.style.display = 'none';
+        }
+    }
+
+    function handleBlur(e) {
+        const val = e.target.value.replace(/\D/g, '').substring(0,6);
+        if (val.length === 6) lookupBIN(val);
+    }
+
+    // Wait for DOM and Vue to render
+    let attempts = 0;
+    const observer = new MutationObserver(() => {
+        if (setupBinWatcher()) {
+            observer.disconnect();
+        } else if (attempts++ > 30) {
+            observer.disconnect();
+            console.warn('BIN input not found after many attempts');
+        }
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+    // Also try immediate and delayed
+    setTimeout(() => setupBinWatcher(), 100);
+    setTimeout(() => setupBinWatcher(), 500);
+    setTimeout(() => setupBinWatcher(), 1500);
+})();
+</script>
 
 </body>
-
 </html>
